@@ -56,6 +56,9 @@ class STCNModel:
         # No need to store the gradient outside training
         torch.set_grad_enabled(self._is_train)
 
+        #: data is a dictionary, the keys are: 'rgb', 'gt', 'cls_gt', 'info',
+        #: while value belongs to Tensors.
+        #: the loop mainly focuses on transfering data to GPU
         for k, v in data.items():
             if type(v) != list and type(v) != dict and type(v) != int:
                 data[k] = v.cuda(non_blocking=True)
@@ -64,17 +67,24 @@ class STCNModel:
         Fs = data['rgb']
         Ms = data['gt']
 
+        #: autocast automatically cast the data precision
         with torch.cuda.amp.autocast(enabled=self.para['amp']):
             # key features never change, compute once
+            #: key frames are image frames without object masks
             k16, kf16_thin, kf16, kf8, kf4 = self.STCN('encode_key', Fs)
 
+            #: single object happens only during pre-training
             if self.single_object:
+                #: encode the value of the reference frame
                 ref_v = self.STCN('encode_value', Fs[:,0], kf16[:,0], Ms[:,0])
 
                 # Segment frame 1 with frame 0
                 prev_logits, prev_mask = self.STCN('segment', 
                         k16[:,:,1], kf16_thin[:,1], kf8[:,1], kf4[:,1], 
                         k16[:,:,0:1], ref_v)
+
+                #: previous value is relative to the third frame, i.e. it is the second 
+                #: frame's encoded value
                 prev_v = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask)
 
                 values = torch.cat([ref_v, prev_v], 2)
@@ -94,6 +104,11 @@ class STCNModel:
                 sec_Ms = data['sec_gt']
                 selector = data['selector']
 
+                #: Why use the information of the other mask when encoding one mask? 
+                #: Well, simply because STM does that. Also it uses only 2 object masks to 
+                #: encode in order to save computational memory cost. See below github issues:
+                #: https://github.com/hkchengrex/STCN/issues/77
+                #: https://github.com/hkchengrex/STCN/issues/85
                 ref_v1 = self.STCN('encode_value', Fs[:,0], kf16[:,0], Ms[:,0], sec_Ms[:,0])
                 ref_v2 = self.STCN('encode_value', Fs[:,0], kf16[:,0], sec_Ms[:,0], Ms[:,0])
                 ref_v = torch.stack([ref_v1, ref_v2], 1)
@@ -145,6 +160,7 @@ class STCNModel:
                     self.train_integrator.finalize('train', it)
                     self.train_integrator.reset_except_hooks()
 
+                #: save the model after every save_model_interval
                 if it % self.save_model_interval == 0 and it != 0:
                     if self.logger is not None:
                         self.save(it)

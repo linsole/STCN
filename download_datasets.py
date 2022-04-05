@@ -1,7 +1,9 @@
 import os
-import gdown
 import zipfile
 from scripts import resize_youtube
+#: comment out some sentences since gdown have trouble downloading from Google drive, so
+#: it need to manually download the zip file to the exact location specified in the 
+#: commented code
 
 
 LICENSE = """
@@ -25,15 +27,15 @@ BL30K: https://github.com/hkchengrex/MiVOS
 
 print(LICENSE)
 print('Datasets will be downloaded and extracted to ../YouTube, ../YouTube2018, ../static, ../DAVIS')
-reply = input('[y] to confirm, others to exit: ')
-if reply != 'y':
-    exit()
+#reply = input('[y] to confirm, others to exit: ')
+#if reply != 'y':
+#    exit()
 
 
 # Static data
 os.makedirs('../static', exist_ok=True)
 print('Downloading static datasets...')
-gdown.download('https://drive.google.com/uc?id=1wUJq3HcLdN-z1t4CsUhjeZ9BVDb9YKLd', output='../static/static_data.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1wUJq3HcLdN-z1t4CsUhjeZ9BVDb9YKLd', output='../static/static_data.zip', quiet=False)
 print('Extracting static datasets...')
 with zipfile.ZipFile('../static/static_data.zip', 'r') as zip_file:
     zip_file.extractall('../static/')
@@ -46,16 +48,16 @@ os.remove('../static/static_data.zip')
 os.makedirs('../DAVIS/2017', exist_ok=True)
 
 print('Downloading DAVIS 2016...')
-gdown.download('https://drive.google.com/uc?id=198aRlh5CpAoFz0hfRgYbiNenn_K8DxWD', output='../DAVIS/DAVIS-data.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=198aRlh5CpAoFz0hfRgYbiNenn_K8DxWD', output='../DAVIS/DAVIS-data.zip', quiet=False)
 
 print('Downloading DAVIS 2017 trainval...')
-gdown.download('https://drive.google.com/uc?id=1kiaxrX_4GuW6NmiVuKGSGVoKGWjOdp6d', output='../DAVIS/2017/DAVIS-2017-trainval-480p.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1kiaxrX_4GuW6NmiVuKGSGVoKGWjOdp6d', output='../DAVIS/2017/DAVIS-2017-trainval-480p.zip', quiet=False)
 
 print('Downloading DAVIS 2017 testdev...')
-gdown.download('https://drive.google.com/uc?id=1fmkxU2v9cQwyb62Tj1xFDdh2p4kDsUzD', output='../DAVIS/2017/DAVIS-2017-test-dev-480p.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1fmkxU2v9cQwyb62Tj1xFDdh2p4kDsUzD', output='../DAVIS/2017/DAVIS-2017-test-dev-480p.zip', quiet=False)
 
 print('Downloading DAVIS 2017 scribbles...')
-gdown.download('https://drive.google.com/uc?id=1JzIQSu36h7dVM8q0VoE4oZJwBXvrZlkl', output='../DAVIS/2017/DAVIS-2017-scribbles-trainval.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1JzIQSu36h7dVM8q0VoE4oZJwBXvrZlkl', output='../DAVIS/2017/DAVIS-2017-scribbles-trainval.zip', quiet=False)
 
 print('Extracting DAVIS datasets...')
 with zipfile.ZipFile('../DAVIS/DAVIS-data.zip', 'r') as zip_file:
@@ -84,11 +86,11 @@ os.makedirs('../YouTube', exist_ok=True)
 os.makedirs('../YouTube/all_frames', exist_ok=True)
 
 print('Downloading YouTubeVOS train...')
-gdown.download('https://drive.google.com/uc?id=13Eqw0gVK-AO5B-cqvJ203mZ2vzWck9s4', output='../YouTube/train.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=13Eqw0gVK-AO5B-cqvJ203mZ2vzWck9s4', output='../YouTube/train.zip', quiet=False)
 print('Downloading YouTubeVOS val...')
-gdown.download('https://drive.google.com/uc?id=1o586Wjya-f2ohxYf9C1RlRH-gkrzGS8t', output='../YouTube/valid.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1o586Wjya-f2ohxYf9C1RlRH-gkrzGS8t', output='../YouTube/valid.zip', quiet=False)
 print('Downloading YouTubeVOS all frames valid...')
-gdown.download('https://drive.google.com/uc?id=1rWQzZcMskgpEQOZdJPJ7eTmLCBEIIpEN', output='../YouTube/all_frames/valid.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1rWQzZcMskgpEQOZdJPJ7eTmLCBEIIpEN', output='../YouTube/all_frames/valid.zip', quiet=False)
 
 print('Extracting YouTube datasets...')
 with zipfile.ZipFile('../YouTube/train.zip', 'r') as zip_file:
@@ -111,9 +113,9 @@ os.makedirs('../YouTube2018', exist_ok=True)
 os.makedirs('../YouTube2018/all_frames', exist_ok=True)
 
 print('Downloading YouTubeVOS2018 val...')
-gdown.download('https://drive.google.com/uc?id=1-QrceIl5sUNTKz7Iq0UsWC6NLZq7girr', output='../YouTube2018/valid.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1-QrceIl5sUNTKz7Iq0UsWC6NLZq7girr', output='../YouTube2018/valid.zip', quiet=False)
 print('Downloading YouTubeVOS2018 all frames valid...')
-gdown.download('https://drive.google.com/uc?id=1yVoHM6zgdcL348cFpolFcEl4IC1gorbV', output='../YouTube2018/all_frames/valid.zip', quiet=False)
+#gdown.download('https://drive.google.com/uc?id=1yVoHM6zgdcL348cFpolFcEl4IC1gorbV', output='../YouTube2018/all_frames/valid.zip', quiet=False)
 
 print('Extracting YouTube2018 datasets...')
 with zipfile.ZipFile('../YouTube2018/valid.zip', 'r') as zip_file:

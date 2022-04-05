@@ -26,6 +26,8 @@ class Decoder(nn.Module):
         self.pred = nn.Conv2d(256, 1, kernel_size=(3,3), padding=(1,1), stride=1)
 
     def forward(self, f16, f8, f4):
+        #: notice the use of f8 and f4 at decoding stages, this is the 'skip connection' 
+        #: between encoded feature map and the output of the previous stage
         x = self.compress(f16)
         x = self.up_16_8(f8, x)
         x = self.up_8_4(f4, x)
@@ -103,11 +105,14 @@ class STCN(nn.Module):
         # input: b*t*c*h*w
         b, t = frame.shape[:2]
 
+        #: flatten the data to 2-dimension and encode the key
         f16, f8, f4 = self.key_encoder(frame.flatten(start_dim=0, end_dim=1))
         k16 = self.key_proj(f16)
         f16_thin = self.key_comp(f16)
 
-        # B*C*T*H*W
+        # B*C*T*H*W  
+        #: after flatten, reconstruct the tensor, 'contiguous' makes sure 
+        #: that semantic and physical memory are consistent
         k16 = k16.view(b, t, *k16.shape[-3:]).transpose(1, 2).contiguous()
 
         # B*T*C*H*W
@@ -127,7 +132,8 @@ class STCN(nn.Module):
         return f16.unsqueeze(2) # B*512*T*H*W
 
     def segment(self, qk16, qv16, qf8, qf4, mk16, mv16, selector=None): 
-        # q - query, m - memory
+        # q - query, m - memory 
+        #: mk16 actually contains qk16, implies the reusing of encoded query key as memory key
         # qv16 is f16_thin above
         affinity = self.memory.get_affinity(mk16, qk16)
         
@@ -149,6 +155,7 @@ class STCN(nn.Module):
         return logits, prob
 
     def forward(self, mode, *args, **kwargs):
+        #: go to different functions according to the passed string argument
         if mode == 'encode_key':
             return self.encode_key(*args, **kwargs)
         elif mode == 'encode_value':

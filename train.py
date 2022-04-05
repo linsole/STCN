@@ -36,6 +36,7 @@ para.parse()
 if para['benchmark']:
     torch.backends.cudnn.benchmark = True
 
+#: information about the GPU device
 local_rank = torch.distributed.get_rank()
 world_size = torch.distributed.get_world_size()
 torch.cuda.set_device(local_rank)
@@ -46,7 +47,7 @@ print('I am rank %d in this world of size %d!' % (local_rank, world_size))
 Model related
 """
 if local_rank == 0:
-    # Logging
+    # Logging #: log statistics during training epochs
     if para['id'].lower() != 'null':
         print('I will take the role of logging!')
         long_id = '%s_%s' % (datetime.datetime.now().strftime('%b%d_%H.%M.%S'), para['id'])
@@ -64,12 +65,14 @@ else:
     model = STCNModel(para, local_rank=local_rank, world_size=world_size).train()
 
 # Load pertrained model if needed
+#: used to resume training from saved checkpoint model
 if para['load_model'] is not None:
     total_iter = model.load_model(para['load_model'])
     print('Previously trained model loaded!')
 else:
     total_iter = 0
 
+#: used to load the network of previous stage
 if para['load_network'] is not None:
     model.load_network(para['load_network'])
     print('Previously trained network loaded!')
@@ -89,6 +92,7 @@ def construct_loader(dataset):
 
 def renew_vos_loader(max_skip):
     # //5 because we only have annotation for every five frames
+    #: randomly skip frames during sampling to learn appearance change over a long time
     yv_dataset = VOSDataset(path.join(yv_root, 'JPEGImages'), 
                         path.join(yv_root, 'Annotations'), max_skip//5, is_bl=False, subset=load_sub_yv())
     davis_dataset = VOSDataset(path.join(davis_root, 'JPEGImages', '480p'), 
@@ -174,6 +178,8 @@ np.random.seed(np.random.randint(2**30-1) + local_rank*100)
 try:
     for e in range(current_epoch, total_epoch): 
         print('Epoch %d/%d' % (e, total_epoch))
+        #: during stage 1, 2 or 3, change sampling's skip value after specific epoch, 
+        #: and this lead to the *renew* of dataloader
         if para['stage']!=0 and e!=total_epoch and e>=increase_skip_epoch[0]:
             while e >= increase_skip_epoch[0]:
                 cur_skip = skip_values[0]

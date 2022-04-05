@@ -72,7 +72,8 @@ class ValueEncoderSO(nn.Module):
 
     def forward(self, image, key_f16, mask):
         # key_f16 is the feature from the key encoder
-
+        #: during pre-trainging, image: 8*3*384*384, mask: 8*1*384*384,
+        #: so cat([image, mask], 1) leads to 8*4*384*384
         f = torch.cat([image, mask], 1)
 
         x = self.conv1(f)
@@ -123,6 +124,7 @@ class ValueEncoder(nn.Module):
         return x
  
 
+#: the structure of value and key encoder are quite similar to each other
 class KeyEncoder(nn.Module):
     def __init__(self):
         super().__init__()
@@ -148,6 +150,7 @@ class KeyEncoder(nn.Module):
         return f16, f8, f4
 
 
+#: 'Upsample' means it scales *up* the spatial dimention
 class UpsampleBlock(nn.Module):
     def __init__(self, skip_c, up_c, out_c, scale_factor=2):
         super().__init__()
