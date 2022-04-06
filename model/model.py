@@ -48,7 +48,7 @@ class STCNModel:
         # Logging info
         self.report_interval = 100
         self.save_im_interval = 800
-        self.save_model_interval = 50000
+        self.save_model_interval = 10000
         if para['debug']:
             self.report_interval = self.save_im_interval = 1
 
@@ -218,7 +218,7 @@ class STCNModel:
         scheduler = checkpoint['scheduler']
 
         map_location = 'cuda:%d' % self.local_rank
-        self.STCN.module.load_state_dict(network)
+        self.STCN.module.load_state_dict(network, strict=False)
         self.optimizer.load_state_dict(optimizer)
         self.scheduler.load_state_dict(scheduler)
 
@@ -239,7 +239,7 @@ class STCNModel:
                     nn.init.orthogonal_(pads)
                     src_dict[k] = torch.cat([src_dict[k], pads], 1)
 
-        self.STCN.module.load_state_dict(src_dict)
+        self.STCN.module.load_state_dict(src_dict, strict=False)
         print('Network weight loaded:', path)
 
     def train(self):

@@ -46,9 +46,7 @@ class Decoder(nn.Module):
     def forward(self, f16, f8, f4):
         #: notice the use of f8 and f4 at decoding stages, this is the 'skip connection' 
         #: between encoded feature map and the output of the previous stage
-        print(f"size before ASPP: {f16.size()}")
         f16 = self.aspp(f16)
-        print(f"size after ASPP: {f16.size()}")
         x = self.compress(f16)
         x = self.up_16_8(f8, x)
         x = self.up_8_4(f4, x)
