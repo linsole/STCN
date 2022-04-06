@@ -16,9 +16,27 @@ import torch.nn.functional as F
 from model.modules import *
 
 
+#: add an ASPP module and place it at the beginning of decoder
+class ASPP(nn.Module):
+    def __init__(self, in_channel=1024, depth=1024):
+        super(ASPP, self).__init__()
+        self.atrous_block2 = nn.Conv2d(in_channel, depth, 3, 1, padding=2, dilation=2)
+        self.atrous_block4 = nn.Conv2d(in_channel, depth, 3, 1, padding=4, dilation=4)
+        self.atrous_block8 = nn.Conv2d(in_channel, depth, 3, 1, padding=8, dilation=8)
+        self.conv_1x1_output = nn.Conv2d(depth * 3, depth, 1, 1)
+
+    def forward(self, x):
+        atrous_block2 = self.atrous_block2(x)
+        atrous_block4 = self.atrous_block4(x)
+        atrous_block8 = self.atrous_block8(x)
+        net = self.conv_1x1_output(torch.cat([atrous_block2, atrous_block4, atrous_block8], dim=1))
+        return net
+
+
 class Decoder(nn.Module):
     def __init__(self):
         super().__init__()
+        self.aspp = ASPP(1024, 1024)
         self.compress = ResBlock(1024, 512)
         self.up_16_8 = UpsampleBlock(512, 512, 256) # 1/16 -> 1/8
         self.up_8_4 = UpsampleBlock(256, 256, 256) # 1/8 -> 1/4
@@ -28,6 +46,9 @@ class Decoder(nn.Module):
     def forward(self, f16, f8, f4):
         #: notice the use of f8 and f4 at decoding stages, this is the 'skip connection' 
         #: between encoded feature map and the output of the previous stage
+        print(f"size before ASPP: {f16.size()}")
+        f16 = self.aspp(f16)
+        print(f"size after ASPP: {f16.size()}")
         x = self.compress(f16)
         x = self.up_16_8(f8, x)
         x = self.up_8_4(f4, x)
