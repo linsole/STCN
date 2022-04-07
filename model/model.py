@@ -197,7 +197,7 @@ class STCNModel:
             return
 
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        checkpoint_path = self.save_path + '_checkpoint.pth'
+        checkpoint_path = self.save_path + str(it) + '_checkpoint.pth'
         checkpoint = { 
             'it': it,
             'network': self.STCN.module.state_dict(),
