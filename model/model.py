@@ -41,7 +41,7 @@ class STCNModel:
         self.train()
         self.optimizer = optim.Adam(filter(
             lambda p: p.requires_grad, self.STCN.parameters()), lr=para['lr'], weight_decay=1e-7)
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, para['steps'], para['gamma'])
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, para['steps'][0], para['gamma'])
         if para['amp']:
             self.scaler = torch.cuda.amp.GradScaler()
 
