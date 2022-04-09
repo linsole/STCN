@@ -8,12 +8,22 @@ e.g. f16 -> encoded features with stride 16
 """
 
 import math
+from turtle import forward
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from model.modules import *
+
+
+#: add Spactial Contraint Module from Spatial Consistent Memory Network
+class SCM(nn.Module):
+    def __init__(self):
+        pass
+
+    def forward(self):
+        pass
 
 
 class Decoder(nn.Module):
