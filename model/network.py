@@ -20,10 +20,12 @@ from model.modules import *
 #: add Spactial Contraint Module from Spatial Consistent Memory Network
 class SCM(nn.Module):
     def __init__(self):
-        pass
+        self.conv = nn.Conv2d(1025, 1, kernel_size=(3,3), padding=(1,1), stride=1)
 
     def forward(self, readout, mask):
-        pass
+        spatial_prior = torch.cat([readout, mask], 1)
+        spatial_prior = torch.sigmoid(self.conv(spatial_prior)).unsqueeze(1)
+        return torch.mul(readout, spatial_prior)
 
 
 class Decoder(nn.Module):
