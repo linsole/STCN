@@ -20,11 +20,14 @@ from model.modules import *
 #: add Spactial Contraint Module from Spatial Consistent Memory Network
 class SCM(nn.Module):
     def __init__(self):
+        super().__init__()
         self.conv = nn.Conv2d(1025, 1, kernel_size=(3,3), padding=(1,1), stride=1)
 
     def forward(self, readout, mask):
+        #: downsample mask to align the dimension
+        mask = F.adaptive_max_pool2d(mask, readout.size()[-2::])
         spatial_prior = torch.cat([readout, mask], 1)
-        spatial_prior = torch.sigmoid(self.conv(spatial_prior)).unsqueeze(1)
+        spatial_prior = torch.sigmoid(self.conv(spatial_prior))
         return torch.mul(readout, spatial_prior)
 
 
@@ -158,10 +161,8 @@ class STCN(nn.Module):
         else:
             readout1 = self.memory.readout(affinity, mv16[:,0], qv16)
             readout2 = self.memory.readout(affinity, mv16[:,1], qv16)
-            print(f"readout size: {readout1.size()}")
             readout1 = self.scm(readout1, mask)
             readout2 = self.scm(readout2, other_mask)
-            print(f"after scm: {readout1.size()}")
             logits = torch.cat([
                 self.decoder(readout1, qf8, qf4),
                 self.decoder(readout2, qf8, qf4),
