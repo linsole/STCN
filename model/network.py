@@ -22,7 +22,7 @@ class SCM(nn.Module):
     def __init__(self):
         pass
 
-    def forward(self):
+    def forward(self, readout, mask):
         pass
 
 
@@ -101,6 +101,7 @@ class STCN(nn.Module):
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
         self.memory = MemoryReader()
+        self.scm = SCM()
         self.decoder = Decoder()
 
     def aggregate(self, prob):
@@ -141,19 +142,27 @@ class STCN(nn.Module):
             f16 = self.value_encoder(frame, kf16, mask, other_mask)
         return f16.unsqueeze(2) # B*512*T*H*W
 
-    def segment(self, qk16, qv16, qf8, qf4, mk16, mv16, selector=None): 
+    def segment(self, qk16, qv16, qf8, qf4, mk16, mv16, mask, other_mask=None, selector=None): 
         # q - query, m - memory 
         #: mk16 actually contains qk16, implies the reusing of encoded query key as memory key
         # qv16 is f16_thin above
         affinity = self.memory.get_affinity(mk16, qk16)
         
         if self.single_object:
-            logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4)
+            readout = self.memory.readout(affinity, mv16, qv16)
+            readout = self.scm(readout, mask)
+            logits = self.decoder(readout, qf8, qf4)
             prob = torch.sigmoid(logits)
         else:
+            readout1 = self.memory.readout(affinity, mv16[:,0], qv16)
+            readout2 = self.memory.readout(affinity, mv16[:,1], qv16)
+            print(f"readout size: {readout1.size()}")
+            readout1 = self.scm(readout1, mask)
+            readout2 = self.scm(readout2, other_mask)
+            print(f"after scm: {readout1.size()}")
             logits = torch.cat([
-                self.decoder(self.memory.readout(affinity, mv16[:,0], qv16), qf8, qf4),
-                self.decoder(self.memory.readout(affinity, mv16[:,1], qv16), qf8, qf4),
+                self.decoder(readout1, qf8, qf4),
+                self.decoder(readout2, qf8, qf4),
             ], 1)
 
             prob = torch.sigmoid(logits)
