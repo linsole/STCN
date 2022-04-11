@@ -36,7 +36,6 @@ class ASPP(nn.Module):
 class Decoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.aspp = ASPP(1024, 1024)
         self.compress = ResBlock(1024, 512)
         self.up_16_8 = UpsampleBlock(512, 512, 256) # 1/16 -> 1/8
         self.up_8_4 = UpsampleBlock(256, 256, 256) # 1/8 -> 1/4
@@ -46,7 +45,6 @@ class Decoder(nn.Module):
     def forward(self, f16, f8, f4):
         #: notice the use of f8 and f4 at decoding stages, this is the 'skip connection' 
         #: between encoded feature map and the output of the previous stage
-        f16 = self.aspp(f16)
         x = self.compress(f16)
         x = self.up_16_8(f8, x)
         x = self.up_8_4(f4, x)
@@ -110,6 +108,7 @@ class STCN(nn.Module):
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
         self.memory = MemoryReader()
+        self.aspp = ASPP(1024, 1024)
         self.decoder = Decoder()
 
     def aggregate(self, prob):
@@ -157,12 +156,15 @@ class STCN(nn.Module):
         affinity = self.memory.get_affinity(mk16, qk16)
         
         if self.single_object:
-            logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4)
+            readout = self.aspp(self.memory.readout(affinity, mv16, qv16))
+            logits = self.decoder(readout, qf8, qf4)
             prob = torch.sigmoid(logits)
         else:
+            readout1 = self.aspp(self.memory.readout(affinity, mv16[:,0], qv16))
+            readout2 = self.aspp(self.memory.readout(affinity, mv16[:,1], qv16))
             logits = torch.cat([
-                self.decoder(self.memory.readout(affinity, mv16[:,0], qv16), qf8, qf4),
-                self.decoder(self.memory.readout(affinity, mv16[:,1], qv16), qf8, qf4),
+                self.decoder(readout1, qf8, qf4),
+                self.decoder(readout2, qf8, qf4),
             ], 1)
 
             prob = torch.sigmoid(logits)
