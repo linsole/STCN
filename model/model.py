@@ -41,14 +41,14 @@ class STCNModel:
         self.train()
         self.optimizer = optim.Adam(filter(
             lambda p: p.requires_grad, self.STCN.parameters()), lr=para['lr'], weight_decay=1e-7)
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, para['steps'][0], para['gamma'])
+        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, para['steps'], para['gamma'])
         if para['amp']:
             self.scaler = torch.cuda.amp.GradScaler()
 
         # Logging info
         self.report_interval = 100
         self.save_im_interval = 800
-        self.save_model_interval = 10000
+        self.save_model_interval = 50000
         if para['debug']:
             self.report_interval = self.save_im_interval = 1
 
@@ -197,7 +197,7 @@ class STCNModel:
             return
 
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        checkpoint_path = self.save_path + str(it) + '_checkpoint.pth'
+        checkpoint_path = self.save_path + '_checkpoint.pth'
         checkpoint = { 
             'it': it,
             'network': self.STCN.module.state_dict(),
@@ -218,7 +218,7 @@ class STCNModel:
         scheduler = checkpoint['scheduler']
 
         map_location = 'cuda:%d' % self.local_rank
-        self.STCN.module.load_state_dict(network, strict=False)
+        self.STCN.module.load_state_dict(network)
         self.optimizer.load_state_dict(optimizer)
         self.scheduler.load_state_dict(scheduler)
 
@@ -239,7 +239,7 @@ class STCNModel:
                     nn.init.orthogonal_(pads)
                     src_dict[k] = torch.cat([src_dict[k], pads], 1)
 
-        self.STCN.module.load_state_dict(src_dict, strict=False)
+        self.STCN.module.load_state_dict(src_dict)
         print('Network weight loaded:', path)
 
     def train(self):
