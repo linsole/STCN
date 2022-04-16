@@ -175,3 +175,13 @@ class KeyProjection(nn.Module):
     
     def forward(self, x):
         return self.key_proj(x)
+
+
+#: add refinement module, take feature map before soft aggrefation as input
+class RefinementModule(nn.Module):
+    def __init__(self, logits):
+        super().__init__()
+        pass
+
+    def forward(self, logits):
+        pass
