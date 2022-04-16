@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 from model.modules import *
 from model.network import Decoder
+from model.network import SCM
 
 
 class STCN(nn.Module):
@@ -27,6 +28,7 @@ class STCN(nn.Module):
         # Compress f16 a bit to use in decoding later on
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
+        self.scm = SCM()
         self.decoder = Decoder()
 
     def encode_value(self, frame, kf16, masks): 
