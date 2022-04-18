@@ -26,15 +26,16 @@ class Decoder(nn.Module):
         self.pred = nn.Conv2d(256, 1, kernel_size=(3,3), padding=(1,1), stride=1)
 
     def forward(self, f16, f8, f4):
+        #: f16:4,1024,24,24    f8: 4,512,48,48    f4: 4,256,96,96
         #: notice the use of f8 and f4 at decoding stages, this is the 'skip connection' 
         #: between encoded feature map and the output of the previous stage
-        x = self.compress(f16)
-        x = self.up_16_8(f8, x)
-        x = self.up_8_4(f4, x)
+        x = self.compress(f16) #: 4,512,24,24
+        x = self.up_16_8(f8, x) #: 4,256,48,48
+        x = self.up_8_4(f4, x) #: 4,256,96,96
 
-        x = self.pred(F.relu(x))
+        x = self.pred(F.relu(x)) #: 4,1,96,96
         
-        x = F.interpolate(x, scale_factor=4, mode='bilinear', align_corners=False)
+        x = F.interpolate(x, scale_factor=4, mode='bilinear', align_corners=False) #: 4,1,384,384
         return x
 
 
@@ -102,40 +103,44 @@ class STCN(nn.Module):
         return logits
 
     def encode_key(self, frame): 
-        # input: b*t*c*h*w
-        b, t = frame.shape[:2]
+        # input: b*t*c*h*w    frame: 4,3,3,384,384
+        b, t = frame.shape[:2] #: b:4, t:3
 
         #: flatten the data to 2-dimension and encode the key
         f16, f8, f4 = self.key_encoder(frame.flatten(start_dim=0, end_dim=1))
-        k16 = self.key_proj(f16)
-        f16_thin = self.key_comp(f16)
+        #: f16: 12,1024,24,24    f8: 12,512,48,48    f4: 12,256,96,96
+        k16 = self.key_proj(f16) #: k16: 12,64,24,24
+        f16_thin = self.key_comp(f16) #: f16_thin: 12,512,24,24
 
         # B*C*T*H*W  
         #: after flatten, reconstruct the tensor, 'contiguous' makes sure 
         #: that semantic and physical memory are consistent
-        k16 = k16.view(b, t, *k16.shape[-3:]).transpose(1, 2).contiguous()
+        k16 = k16.view(b, t, *k16.shape[-3:]).transpose(1, 2).contiguous() #: k16: 4,64,3,24,24
 
         # B*T*C*H*W
-        f16_thin = f16_thin.view(b, t, *f16_thin.shape[-3:])
-        f16 = f16.view(b, t, *f16.shape[-3:])
-        f8 = f8.view(b, t, *f8.shape[-3:])
-        f4 = f4.view(b, t, *f4.shape[-3:])
+        f16_thin = f16_thin.view(b, t, *f16_thin.shape[-3:]) #: f16_thin: 4,3,512,24,24
+        f16 = f16.view(b, t, *f16.shape[-3:]) #: 4,3,1024,24,24
+        f8 = f8.view(b, t, *f8.shape[-3:]) #: 4,3,512,48,48
+        f4 = f4.view(b, t, *f4.shape[-3:]) #: 4,3,256,96,96
 
         return k16, f16_thin, f16, f8, f4
 
     def encode_value(self, frame, kf16, mask, other_mask=None): 
         # Extract memory key/value for a frame
+        #: frame: 4,3,384,384    kf16: 4,1024,24,24    mask: 4,1,384,384(other_mask)
         if self.single_object:
             f16 = self.value_encoder(frame, kf16, mask)
         else:
-            f16 = self.value_encoder(frame, kf16, mask, other_mask)
-        return f16.unsqueeze(2) # B*512*T*H*W
+            f16 = self.value_encoder(frame, kf16, mask, other_mask) #: 4,512,24,24
+        return f16.unsqueeze(2) # B*512*T*H*W #: 4,512,1,24,24
 
     def segment(self, qk16, qv16, qf8, qf4, mk16, mv16, selector=None): 
-        # q - query, m - memory 
-        #: mk16 actually contains qk16, implies the reusing of encoded query key as memory key
+        # q - query, m - memory
+        #: qk16: 4,64,24,24    qv16: 4,512,24,24    qf8: 4,512,48,48    qf4: 4,256,96,96
+        #: mk16: 4,64,1(2),24,24    mv16: 4,2,512,1(2),24,24
+        #: similarity between mk16 and qk16 implies reusing of encoded query key as memory key
         # qv16 is f16_thin above
-        affinity = self.memory.get_affinity(mk16, qk16)
+        affinity = self.memory.get_affinity(mk16, qk16) #: 4,576,576
         
         if self.single_object:
             logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4)
@@ -144,13 +149,13 @@ class STCN(nn.Module):
             logits = torch.cat([
                 self.decoder(self.memory.readout(affinity, mv16[:,0], qv16), qf8, qf4),
                 self.decoder(self.memory.readout(affinity, mv16[:,1], qv16), qf8, qf4),
-            ], 1)
+            ], 1)  #: 4,2,384,384
 
-            prob = torch.sigmoid(logits)
-            prob = prob * selector.unsqueeze(2).unsqueeze(2)
+            prob = torch.sigmoid(logits) #: 4,2,384,384
+            prob = prob * selector.unsqueeze(2).unsqueeze(2) #: selector.unsqueeze(2).unsqueeze(2): 4,2,1,1
 
-        logits = self.aggregate(prob)
-        prob = F.softmax(logits, dim=1)[:, 1:]
+        logits = self.aggregate(prob) #: 4,3,384,384
+        prob = F.softmax(logits, dim=1)[:, 1:] #: 4,2,384,384
 
         return logits, prob
 

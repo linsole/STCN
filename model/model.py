@@ -56,7 +56,7 @@ class STCNModel:
         # No need to store the gradient outside training
         torch.set_grad_enabled(self._is_train)
 
-        #: data is a dictionary, the keys are: 'rgb', 'gt', 'cls_gt', 'info',
+        #: data is a dictionary, the keys are: 'rgb', 'gt', 'cls_gt', (sec_gt and selector),  'info',
         #: while value belongs to Tensors.
         #: the loop mainly focuses on transfering data to GPU
         for k, v in data.items():
@@ -64,79 +64,81 @@ class STCNModel:
                 data[k] = v.cuda(non_blocking=True)
 
         out = {}
-        Fs = data['rgb']
-        Ms = data['gt']
+        Fs = data['rgb'] #: 4,3,3,384,384
+        Ms = data['gt'] #: 4,3,1,384,384
 
         #: autocast automatically cast the data precision
         with torch.cuda.amp.autocast(enabled=self.para['amp']):
             # key features never change, compute once
             #: key frames are image frames without object masks
             k16, kf16_thin, kf16, kf8, kf4 = self.STCN('encode_key', Fs)
+            #: k16: 4,64,3,24,24    kf16_thin: 4,3,512,24,24
+            #: kf16: 4,3,1024,24,24    kf8: 4,3,512,48,48    kf4: 4,3,256,96,96
 
             #: single object happens only during pre-training
             if self.single_object:
                 #: encode the value of the reference frame
-                ref_v = self.STCN('encode_value', Fs[:,0], kf16[:,0], Ms[:,0])
+                ref_v = self.STCN('encode_value', Fs[:,0], kf16[:,0], Ms[:,0])  #: 8,512,1,24,24
 
                 # Segment frame 1 with frame 0
                 prev_logits, prev_mask = self.STCN('segment', 
                         k16[:,:,1], kf16_thin[:,1], kf8[:,1], kf4[:,1], 
-                        k16[:,:,0:1], ref_v)
+                        k16[:,:,0:1], ref_v) #: prev_logits: 8,2,384,384    prev_mask:8,1,384,384
 
                 #: previous value is relative to the third frame, i.e. it is the second 
                 #: frame's encoded value
-                prev_v = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask)
+                prev_v = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask) #: prev_v: 8,512,1,24,24
 
-                values = torch.cat([ref_v, prev_v], 2)
+                values = torch.cat([ref_v, prev_v], 2) #: values: 8,512,2,24,24
 
                 del ref_v
 
                 # Segment frame 2 with frame 0 and 1
                 this_logits, this_mask = self.STCN('segment', 
                         k16[:,:,2], kf16_thin[:,2], kf8[:,2], kf4[:,2], 
-                        k16[:,:,0:2], values)
+                        k16[:,:,0:2], values) #: this_logits: 8,2,384,384    this_mask:8,1,384,384
 
-                out['mask_1'] = prev_mask
-                out['mask_2'] = this_mask
-                out['logits_1'] = prev_logits
-                out['logits_2'] = this_logits
+                out['mask_1'] = prev_mask #: 8,1,384,384
+                out['mask_2'] = this_mask #: 8,1,384,384
+                out['logits_1'] = prev_logits #: 8,2,384,384
+                out['logits_2'] = this_logits #: 8,2,384,384
             else:
-                sec_Ms = data['sec_gt']
-                selector = data['selector']
+                sec_Ms = data['sec_gt'] #: 4,3,1,384,384
+                selector = data['selector'] #: 4,2
 
                 #: Why use the information of the other mask when encoding one mask? 
                 #: Well, simply because STM does that. Also it uses only 2 object masks to 
                 #: encode in order to save computational memory cost. See below github issues:
                 #: https://github.com/hkchengrex/STCN/issues/77
                 #: https://github.com/hkchengrex/STCN/issues/85
-                ref_v1 = self.STCN('encode_value', Fs[:,0], kf16[:,0], Ms[:,0], sec_Ms[:,0])
-                ref_v2 = self.STCN('encode_value', Fs[:,0], kf16[:,0], sec_Ms[:,0], Ms[:,0])
-                ref_v = torch.stack([ref_v1, ref_v2], 1)
+                ref_v1 = self.STCN('encode_value', Fs[:,0], kf16[:,0], Ms[:,0], sec_Ms[:,0]) #: 4,512,1,24,24
+                ref_v2 = self.STCN('encode_value', Fs[:,0], kf16[:,0], sec_Ms[:,0], Ms[:,0]) #: 4,512,1,24,24
+                ref_v = torch.stack([ref_v1, ref_v2], 1) #: 4,2,512,1,24,24
 
                 # Segment frame 1 with frame 0
                 prev_logits, prev_mask = self.STCN('segment', 
                         k16[:,:,1], kf16_thin[:,1], kf8[:,1], kf4[:,1], 
-                        k16[:,:,0:1], ref_v, selector)
+                        k16[:,:,0:1], ref_v, selector) #: prev_logits: 4,3,384,384    prev_mask: 4,2,384,384
                 
-                prev_v1 = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask[:,0:1], prev_mask[:,1:2])
-                prev_v2 = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask[:,1:2], prev_mask[:,0:1])
-                prev_v = torch.stack([prev_v1, prev_v2], 1)
-                values = torch.cat([ref_v, prev_v], 3)
+                prev_v1 = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask[:,0:1], prev_mask[:,1:2]) #: 4,512,1,24,24
+                prev_v2 = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask[:,1:2], prev_mask[:,0:1]) #: 4,512,1,24,24
+                prev_v = torch.stack([prev_v1, prev_v2], 1) #: 4,2,512,1,24,24
+                values = torch.cat([ref_v, prev_v], 3) #: 4,2,512,2,24,24
 
                 del ref_v
 
                 # Segment frame 2 with frame 0 and 1
                 this_logits, this_mask = self.STCN('segment', 
                         k16[:,:,2], kf16_thin[:,2], kf8[:,2], kf4[:,2], 
-                        k16[:,:,0:2], values, selector)
+                        k16[:,:,0:2], values, selector) #: this_logits: 4,3,384,384    this_mask: 4,2,384,384
 
-                out['mask_1'] = prev_mask[:,0:1]
-                out['mask_2'] = this_mask[:,0:1]
-                out['sec_mask_1'] = prev_mask[:,1:2]
-                out['sec_mask_2'] = this_mask[:,1:2]
+                out['mask_1'] = prev_mask[:,0:1] #: 4,1,384,384
+                out['mask_2'] = this_mask[:,0:1] #: 4,1,384,384
+                out['sec_mask_1'] = prev_mask[:,1:2] #: 4,1,384,384
+                out['sec_mask_2'] = this_mask[:,1:2] #: 4,1,384,384
 
-                out['logits_1'] = prev_logits
-                out['logits_2'] = this_logits
+                out['logits_1'] = prev_logits #: 4,3,384,384
+                out['logits_2'] = this_logits #: 4,3,384,384
 
             if self._do_log or self._is_train:
                 losses = self.loss_computer.compute({**data, **out}, it)
