@@ -143,8 +143,8 @@ class STCN(nn.Module):
         affinity = self.memory.get_affinity(mk16, qk16) #: 4,576,576
         
         if self.single_object:
-            logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4)
-            prob = torch.sigmoid(logits)
+            logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4) #: 8,1,384,384
+            prob = torch.sigmoid(logits) #: 8,1,384,384
         else:
             logits = torch.cat([
                 self.decoder(self.memory.readout(affinity, mv16[:,0], qv16), qf8, qf4),
@@ -154,8 +154,8 @@ class STCN(nn.Module):
             prob = torch.sigmoid(logits) #: 4,2,384,384
             prob = prob * selector.unsqueeze(2).unsqueeze(2) #: selector.unsqueeze(2).unsqueeze(2): 4,2,1,1
 
-        logits = self.aggregate(prob) #: 4,3,384,384
-        prob = F.softmax(logits, dim=1)[:, 1:] #: 4,2,384,384
+        logits = self.aggregate(prob) #: single: 8,2,384,384    multiple: 4,3,384,384
+        prob = F.softmax(logits, dim=1)[:, 1:] #: single: 8,1,384,384    multiple: 4,2,384,384
 
         return logits, prob
 
