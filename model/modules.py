@@ -182,13 +182,29 @@ class KeyProjection(nn.Module):
 class RefinementModule(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(2, 64, kernel_size=3, stride=3) #:4,64,128,128
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=2) #:4,128,,
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1, stride=2)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1, stride=2)
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1, stride=2)
+        self.compress = ResBlock(256, 128)
+        self.up_1 = UpsampleBlock(128, 128, 64)
+        self.up_2 = UpsampleBlock(64, 64, 64)
+        self.pred = nn.Conv2d(64, 1, kernel_size=(3,3), padding=(1,1), stride=1)
 
     def forward(self, logits):
+        #: logits should be 4,2,384,384(MO), but we just pass one mask one time(4,1,384,384)
         logits = self.conv1(logits)
-        tmp1 = F.relu(logits)
-        logits = self.conv2(logits)
-        tmp2 = F.relu(logits)
-        return tmp1, tmp2
+        f2 = F.relu(logits) #:4,64,192,192
+        logits = self.conv2(f2)
+        f4 = F.relu(logits) #:4,128,96,96
+        logits = self.conv3(f4)
+        f8 = F.relu(logits) #:4,256,48,48
+
+        x = self.compress(f8) #:4,128,48,48
+        x = self.up_1(f4, x) #:4,64,96,96
+        x = self.up_2(f2, x) #:4,64,192,192
+
+        x = self.pred(F.relu(x)) #:4,1,192,192
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False) #:4,1,384,384
+
+        return x
 
