@@ -91,6 +91,7 @@ class STCN(nn.Module):
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
         self.memory = MemoryReader()
+        self.refine = RefinementModule()
         self.decoder = Decoder()
 
     def aggregate(self, prob):
@@ -149,6 +150,8 @@ class STCN(nn.Module):
             prob = torch.sigmoid(logits)
             prob = prob * selector.unsqueeze(2).unsqueeze(2)
 
+        #: add refinement module before soft aggregation
+        tmp1, tmp2 = self.refine(logits)
         logits = self.aggregate(prob)
         prob = F.softmax(logits, dim=1)[:, 1:]
 

@@ -178,18 +178,17 @@ class KeyProjection(nn.Module):
 
 
 #: add refinement module, take feature map before soft aggrefation as input
+#: we only deal with multiple objects for now
 class RefinementModule(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(indim, outdim, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(indim, outdim, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(indim, outdim, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(2, 64, kernel_size=3, stride=3) #:4,64,128,128
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=2) #:4,128,,
 
     def forward(self, logits):
         logits = self.conv1(logits)
         tmp1 = F.relu(logits)
         logits = self.conv2(logits)
         tmp2 = F.relu(logits)
-        logits = self.conv3(logits)
-        tmp3 = F.relu(logits)
+        return tmp1, tmp2
 
