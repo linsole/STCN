@@ -27,6 +27,7 @@ class STCN(nn.Module):
         # Compress f16 a bit to use in decoding later on
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
+        self.refine = RefinementModule()
         self.decoder = Decoder()
 
     def encode_value(self, frame, kf16, masks): 
@@ -61,5 +62,11 @@ class STCN(nn.Module):
         readout_mem = mem_bank.match_memory(qk16)
         qv16 = qv16.expand(k, -1, -1, -1)
         qv16 = torch.cat([readout_mem, qv16], 1)
+        prob = torch.sigmoid(self.decoder(qv16, qf8, qf4))
 
-        return torch.sigmoid(self.decoder(qv16, qf8, qf4))
+        if k == 2:
+            prob = prob.squeeze(1).unsqueeze(0)
+            prob = torch.cat([self.refine(prob[:,0].unsqueeze(1)), self.refine(prob[:,1].unsqueeze(1))], 1)
+            prob = prob.permute(1,0,2,3)
+
+        return prob
