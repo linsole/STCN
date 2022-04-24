@@ -150,7 +150,7 @@ class STCN(nn.Module):
             prob = torch.sigmoid(logits)
             prob = prob * selector.unsqueeze(2).unsqueeze(2)
             #: add refinement module before soft aggregation
-            prob = torch.cat([self.refine(prob[:,0].unsqueeze(1)), self.refine(prob[:,0].unsqueeze(1))], 1)
+            prob = torch.cat([self.refine(prob[:,0].unsqueeze(1)), self.refine(prob[:,1].unsqueeze(1))], 1)
 
         logits = self.aggregate(prob)
         prob = F.softmax(logits, dim=1)[:, 1:]
