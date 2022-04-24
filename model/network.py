@@ -92,6 +92,7 @@ class STCN(nn.Module):
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
         self.memory = MemoryReader()
+        self.aspp = ASPP(1024, 1024)
         self.decoder = Decoder()
 
     def aggregate(self, prob):
@@ -143,13 +144,16 @@ class STCN(nn.Module):
         affinity = self.memory.get_affinity(mk16, qk16) #: 4,576,576
         
         if self.single_object:
-            logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4) #: 8,1,384,384
+            readout = self.aspp(self.memory.readout(affinity, mv16, qv16))
+            logits = self.decoder(readout, qf8, qf4) #: 8,1,384,384
             prob = torch.sigmoid(logits) #: 8,1,384,384
         else:
+            readout1 = self.aspp(self.memory.readout(affinity, mv16[:,0], qv16))
+            readout2 = self.aspp(self.memory.readout(affinity, mv16[:,1], qv16))
             logits = torch.cat([
-                self.decoder(self.memory.readout(affinity, mv16[:,0], qv16), qf8, qf4),
-                self.decoder(self.memory.readout(affinity, mv16[:,1], qv16), qf8, qf4),
-            ], 1)  #: 4,2,384,384
+                self.decoder(readout1, qf8, qf4),
+                self.decoder(readout2, qf8, qf4),
+            ], 1) #: 4,2,384,384
 
             prob = torch.sigmoid(logits) #: 4,2,384,384
             prob = prob * selector.unsqueeze(2).unsqueeze(2) #: selector.unsqueeze(2).unsqueeze(2): 4,2,1,1

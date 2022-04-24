@@ -175,3 +175,20 @@ class KeyProjection(nn.Module):
     
     def forward(self, x):
         return self.key_proj(x)
+
+
+#: add an ASPP module and apply it to the readout value of memory reader
+class ASPP(nn.Module):
+    def __init__(self, in_channel=1024, depth=1024):
+        super(ASPP, self).__init__()
+        self.atrous_block2 = nn.Conv2d(in_channel, depth, 3, 1, padding=2, dilation=2)
+        self.atrous_block4 = nn.Conv2d(in_channel, depth, 3, 1, padding=4, dilation=4)
+        self.atrous_block8 = nn.Conv2d(in_channel, depth, 3, 1, padding=8, dilation=8)
+        self.conv_1x1_output = nn.Conv2d(depth * 3, depth, 1, 1)
+
+    def forward(self, x):
+        atrous_block2 = self.atrous_block2(x)
+        atrous_block4 = self.atrous_block4(x)
+        atrous_block8 = self.atrous_block8(x)
+        net = self.conv_1x1_output(torch.cat([atrous_block2, atrous_block4, atrous_block8], dim=1))
+        return net
