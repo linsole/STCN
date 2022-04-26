@@ -141,6 +141,7 @@ class STCN(nn.Module):
         if self.single_object:
             logits = self.decoder(self.memory.readout(affinity, mv16, qv16), qf8, qf4)
             prob = torch.sigmoid(logits)
+            prob = self.refine(prob)
         else:
             logits = torch.cat([
                 self.decoder(self.memory.readout(affinity, mv16[:,0], qv16), qf8, qf4),
