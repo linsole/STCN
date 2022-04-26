@@ -63,13 +63,6 @@ class STCN(nn.Module):
         qv16 = qv16.expand(k, -1, -1, -1)
         qv16 = torch.cat([readout_mem, qv16], 1)
         prob = torch.sigmoid(self.decoder(qv16, qf8, qf4))
-
-        prob = prob.squeeze(1).unsqueeze(0)
-        if k == 1:
-            prob = self.refine(prob)
-        if k == 2:
-            prob = torch.cat([self.refine(prob[:,0].unsqueeze(1)), self.refine(prob[:,1].unsqueeze(1))], 1)
-
-        prob = prob.permute(1,0,2,3)
+        prob = self.refine(prob)
 
         return prob
