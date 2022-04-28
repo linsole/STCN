@@ -28,6 +28,7 @@ class STCN(nn.Module):
         self.key_comp = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
 
         self.aspp = ASPP(1024, 1024)
+        self.refine = RefinementModule()
         self.decoder = Decoder()
 
     def encode_value(self, frame, kf16, masks): 
@@ -63,5 +64,7 @@ class STCN(nn.Module):
         qv16 = qv16.expand(k, -1, -1, -1)
         qv16 = torch.cat([readout_mem, qv16], 1)
         qv16 = self.aspp(qv16)
+        prob = torch.sigmoid(self.decoder(qv16, qf8, qf4))
+        prob = self.refine(prob)
 
-        return torch.sigmoid(self.decoder(qv16, qf8, qf4))
+        return prob
