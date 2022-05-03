@@ -159,8 +159,8 @@ class STCN(nn.Module):
             logits = self.decoder(readout, qf8, qf4)
             prob = torch.sigmoid(logits)
         else:
-            readout1 = self.memory.readout(affinity, mv16[:,0], qv16)
-            readout2 = self.memory.readout(affinity, mv16[:,1], qv16)
+            readout1 = self.memory.readout(affinity, mv16[:,0], qv16) #: 4,1024,24,24
+            readout2 = self.memory.readout(affinity, mv16[:,1], qv16) #: 4,1024,24,24
             readout1 = self.scm(readout1, mask)
             readout2 = self.scm(readout2, other_mask)
             logits = torch.cat([

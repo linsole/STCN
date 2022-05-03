@@ -42,7 +42,7 @@ class InferenceCore:
         result = self.prop_net.encode_key(self.images[:,idx].cuda())
         return result
 
-    def do_pass(self, key_k, key_v, idx, end_idx):
+    def do_pass(self, key_k, key_v, idx, end_idx, prev_mask):
         self.mem_bank.add_memory(key_k, key_v)
         closest_ti = end_idx
 
@@ -52,8 +52,8 @@ class InferenceCore:
 
         for ti in this_range:
             k16, qv16, qf16, qf8, qf4 = self.encode_key(ti)
-            out_mask = self.prop_net.segment_with_query(self.mem_bank, qf8, qf4, k16, qv16)
-
+            out_mask = self.prop_net.segment_with_query(self.mem_bank, qf8, qf4, k16, qv16, prev_mask)
+            prev_mask = out_mask
             out_mask = aggregate(out_mask, keep_bg=True)
             self.prob[:,ti] = out_mask
 
@@ -67,9 +67,9 @@ class InferenceCore:
         return closest_ti
 
     def interact(self, mask, frame_idx, end_idx):
-        mask, _ = pad_divide_by(mask.cuda(), 16)
+        mask, _ = pad_divide_by(mask.cuda(), 16) #: MO: 2,1,480,912    SO: 1,1,480,864
 
-        self.prob[:, frame_idx] = aggregate(mask, keep_bg=True)
+        self.prob[:, frame_idx] = aggregate(mask, keep_bg=True) #: self.prob: MO: 2,1,480,912    SO: 2,50,1,480,864
 
         # KV pair for the interacting frame
         key_k, _, qf16, _, _ = self.encode_key(frame_idx)
@@ -77,4 +77,4 @@ class InferenceCore:
         key_k = key_k.unsqueeze(2)
 
         # Propagate
-        self.do_pass(key_k, key_v, frame_idx, end_idx)
+        self.do_pass(key_k, key_v, frame_idx, end_idx, mask)

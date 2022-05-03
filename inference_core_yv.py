@@ -52,7 +52,7 @@ class InferenceCore:
         result = self.prop_net.encode_key(self.images[:,idx].cuda())
         return result
 
-    def do_pass(self, key_k, key_v, idx, end_idx):
+    def do_pass(self, key_k, key_v, idx, end_idx, prev_mask):
         closest_ti = end_idx
 
         K, CK, _, H, W = key_k.shape
@@ -80,13 +80,13 @@ class InferenceCore:
 
             # After this step all keys will have the same size
             out_mask = torch.cat([
-                self.prop_net.segment_with_query(self.mem_banks[oi], qf8, qf4, k16, qv16)
-            for oi in self.enabled_obj], 0)
-
+                self.prop_net.segment_with_query(self.mem_banks[oi], qf8, qf4, k16, qv16, prev_mask[i].unsqueeze(0).cuda())
+            for i, oi in enumerate(self.enabled_obj)], 0)
             out_mask = aggregate(out_mask, keep_bg=True)
             self.prob[0,ti] = out_mask[0]
             for i, oi in enumerate(self.enabled_obj):
                 self.prob[oi,ti] = out_mask[i+1]
+            prev_mask = out_mask[1:]
 
             if ti != end:
                 if self.include_last or is_mem_frame:
@@ -120,4 +120,4 @@ class InferenceCore:
         key_k = key_k.unsqueeze(2)
 
         # Propagate
-        self.do_pass(key_k, key_v, frame_idx, end_idx)
+        self.do_pass(key_k, key_v, frame_idx, end_idx, mask[self.enabled_obj])
