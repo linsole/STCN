@@ -29,6 +29,7 @@ class STCN(nn.Module):
 
         self.aspp = ASPP(1024, 1024)
         self.refine = RefinementModule()
+        self.scm = SCM()
         self.decoder = Decoder()
 
     def encode_value(self, frame, kf16, masks): 
@@ -57,13 +58,14 @@ class STCN(nn.Module):
 
         return k16, f16_thin, f16, f8, f4
 
-    def segment_with_query(self, mem_bank, qf8, qf4, qk16, qv16): 
-        k = mem_bank.num_objects
+    def segment_with_query(self, mem_bank, qf8, qf4, qk16, qv16, prev_mask):
+        k = mem_bank.num_objects       #: prev_mask: MO:2,1,480,912    SO:1,1,480,864
 
-        readout_mem = mem_bank.match_memory(qk16)
-        qv16 = qv16.expand(k, -1, -1, -1)
-        qv16 = torch.cat([readout_mem, qv16], 1)
+        readout_mem = mem_bank.match_memory(qk16) #: MO:2,512,30,57    SO:1,512,30,54
+        qv16 = qv16.expand(k, -1, -1, -1)         #: MO:2,512,30,57    SO:1,512,30,54
+        qv16 = torch.cat([readout_mem, qv16], 1)  #: MO:2,1024,30,57   SO:1,1024,30,54
         qv16 = self.aspp(qv16)
+        qv16 = self.scm(qv16, prev_mask)
         prob = torch.sigmoid(self.decoder(qv16, qf8, qf4))
         prob = self.refine(prob)
 

@@ -94,6 +94,7 @@ class STCN(nn.Module):
         self.memory = MemoryReader()
         self.aspp = ASPP(1024, 1024)
         self.refine = RefinementModule()
+        self.scm = SCM()
         self.decoder = Decoder()
 
     def aggregate(self, prob):
@@ -136,7 +137,7 @@ class STCN(nn.Module):
             f16 = self.value_encoder(frame, kf16, mask, other_mask) #: 4,512,24,24
         return f16.unsqueeze(2) # B*512*T*H*W #: 4,512,1,24,24
 
-    def segment(self, qk16, qv16, qf8, qf4, mk16, mv16, selector=None): 
+    def segment(self, qk16, qv16, qf8, qf4, mk16, mv16, mask, other_mask=None, selector=None): 
         # q - query, m - memory
         #: qk16: 4,64,24,24    qv16: 4,512,24,24    qf8: 4,512,48,48    qf4: 4,256,96,96
         #: mk16: 4,64,1(2),24,24    mv16: 4,2,512,1(2),24,24
@@ -146,12 +147,15 @@ class STCN(nn.Module):
         
         if self.single_object:
             readout = self.aspp(self.memory.readout(affinity, mv16, qv16))
+            readout = self.scm(readout, mask)
             logits = self.decoder(readout, qf8, qf4) #: 8,1,384,384
             prob = torch.sigmoid(logits) #: 8,1,384,384
             prob = self.refine(prob)
         else:
-            readout1 = self.aspp(self.memory.readout(affinity, mv16[:,0], qv16))
-            readout2 = self.aspp(self.memory.readout(affinity, mv16[:,1], qv16))
+            readout1 = self.aspp(self.memory.readout(affinity, mv16[:,0], qv16)) #: 4,1024,24,24
+            readout2 = self.aspp(self.memory.readout(affinity, mv16[:,1], qv16)) #: 4,1024,24,24
+            readout1 = self.scm(readout1, mask)
+            readout2 = self.scm(readout2, other_mask)
             logits = torch.cat([
                 self.decoder(readout1, qf8, qf4),
                 self.decoder(readout2, qf8, qf4),

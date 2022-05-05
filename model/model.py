@@ -83,7 +83,7 @@ class STCNModel:
                 # Segment frame 1 with frame 0
                 prev_logits, prev_mask = self.STCN('segment', 
                         k16[:,:,1], kf16_thin[:,1], kf8[:,1], kf4[:,1], 
-                        k16[:,:,0:1], ref_v) #: prev_logits: 8,2,384,384    prev_mask:8,1,384,384
+                        k16[:,:,0:1], ref_v, Ms[:,0]) #: prev_logits: 8,2,384,384    prev_mask:8,1,384,384
 
                 #: previous value is relative to the third frame, i.e. it is the second 
                 #: frame's encoded value
@@ -96,7 +96,7 @@ class STCNModel:
                 # Segment frame 2 with frame 0 and 1
                 this_logits, this_mask = self.STCN('segment', 
                         k16[:,:,2], kf16_thin[:,2], kf8[:,2], kf4[:,2], 
-                        k16[:,:,0:2], values) #: this_logits: 8,2,384,384    this_mask:8,1,384,384
+                        k16[:,:,0:2], values, prev_mask) #: this_logits: 8,2,384,384    this_mask:8,1,384,384
 
                 out['mask_1'] = prev_mask #: 8,1,384,384
                 out['mask_2'] = this_mask #: 8,1,384,384
@@ -118,7 +118,7 @@ class STCNModel:
                 # Segment frame 1 with frame 0
                 prev_logits, prev_mask = self.STCN('segment', 
                         k16[:,:,1], kf16_thin[:,1], kf8[:,1], kf4[:,1], 
-                        k16[:,:,0:1], ref_v, selector) #: prev_logits: 4,3,384,384    prev_mask: 4,2,384,384
+                        k16[:,:,0:1], ref_v, Ms[:,0], sec_Ms[:,0], selector) #: prev_logits: 4,3,384,384    prev_mask: 4,2,384,384
                 
                 prev_v1 = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask[:,0:1], prev_mask[:,1:2]) #: 4,512,1,24,24
                 prev_v2 = self.STCN('encode_value', Fs[:,1], kf16[:,1], prev_mask[:,1:2], prev_mask[:,0:1]) #: 4,512,1,24,24
@@ -130,7 +130,7 @@ class STCNModel:
                 # Segment frame 2 with frame 0 and 1
                 this_logits, this_mask = self.STCN('segment', 
                         k16[:,:,2], kf16_thin[:,2], kf8[:,2], kf4[:,2], 
-                        k16[:,:,0:2], values, selector) #: this_logits: 4,3,384,384    this_mask: 4,2,384,384
+                        k16[:,:,0:2], values, prev_mask[:,0:1], prev_mask[:,1:2], selector) #: this_logits: 4,3,384,384    this_mask: 4,2,384,384
 
                 out['mask_1'] = prev_mask[:,0:1] #: 4,1,384,384
                 out['mask_2'] = this_mask[:,0:1] #: 4,1,384,384

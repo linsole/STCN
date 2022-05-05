@@ -194,6 +194,20 @@ class ASPP(nn.Module):
         return net
 
 
+#: add Spatial Contraint Module from Spatial Consistent Memory Network
+class SCM(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = nn.Conv2d(1025, 1, kernel_size=(3,3), padding=(1,1), stride=1)
+
+    def forward(self, readout, mask):
+        #: downsample mask to align the dimension
+        mask = F.adaptive_max_pool2d(mask, readout.size()[-2::])
+        spatial_prior = torch.cat([readout, mask], 1)
+        spatial_prior = torch.sigmoid(self.conv(spatial_prior))
+        return torch.mul(readout, spatial_prior)
+
+
 #: add refinement module, take feature map before soft aggrefation as input
 #: we only deal with multiple objects for now
 class RefinementModule(nn.Module):
