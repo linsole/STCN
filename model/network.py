@@ -162,10 +162,14 @@ class STCN(nn.Module):
             ], 1) #: 4,2,384,384
 
             prob = torch.sigmoid(logits) #: 4,2,384,384
-            prob = prob * selector.unsqueeze(2).unsqueeze(2) #: selector.unsqueeze(2).unsqueeze(2): 4,2,1,1
             
             #: add refinement module before soft aggregation
             prob = torch.cat([self.refine(prob[:,0].unsqueeze(1)), self.refine(prob[:,1].unsqueeze(1))], 1)
+
+            #: Attention! It's important that this procedure is placed at last, i.e *after refinement module*, 
+            #: otherwise we may incorrectly produce a *second mask* when dealing with single object segmentation, 
+            #: which is possible during main training even this is under the *not self.single_object* condition
+            prob = prob * selector.unsqueeze(2).unsqueeze(2) #: selector.unsqueeze(2).unsqueeze(2): 4,2,1,1
 
         logits = self.aggregate(prob) #: single: 8,2,384,384    multiple: 4,3,384,384
         prob = F.softmax(logits, dim=1)[:, 1:] #: single: 8,1,384,384    multiple: 4,2,384,384
